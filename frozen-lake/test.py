@@ -1,6 +1,9 @@
 
 import gymnasium as gym
+import numpy as np
 import time
+
+Q = np.load("q_table.npy")
 
 env = gym.make(
     "FrozenLake-v1",
@@ -11,26 +14,27 @@ env = gym.make(
 
 actions = ["Left", "Down", "Right", "Up"]
 
-state, info = env.reset(seed=42)
+state, info = env.reset()
+done = False
+total_reward = 0
+
 print(env.render())
 
-for step in range(30):
-    # Random action (no learning yet)
-    action = env.action_space.sample()
+while not done:
+    # Choose the best learned action
+    # action = int(np.argmax(Q[state]))
+    action = env.action_space.sample()  # Random action for testing
 
     state, reward, terminated, truncated, info = env.step(action)
+    done = terminated or truncated
+    total_reward += reward
 
-    print(f"Step {step + 1}: {actions[action]}")
+    print(f"Action: {actions[action]}")
     print(f"State: {state}, Reward: {reward}")
     print(env.render())
 
     time.sleep(0.4)
 
-    if terminated or truncated:
-        print("Episode finished!")
-        time.sleep(1)
-
-        state, info = env.reset()
-        print(env.render())
+print(f"Episode finished! Total reward: {total_reward}")
 
 env.close()
