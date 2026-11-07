@@ -22,8 +22,8 @@ print(env.render())
 
 while not done:
     # Choose the best learned action
-    # action = int(np.argmax(Q[state]))
-    action = env.action_space.sample()  # Random action for testing
+    action = int(np.argmax(Q[state]))
+    # action = env.action_space.sample()  # Random action for testing
 
     state, reward, terminated, truncated, info = env.step(action)
     done = terminated or truncated

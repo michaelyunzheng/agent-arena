@@ -18,7 +18,7 @@ Q = np.zeros((
 alpha = 0.8        # Learning rate
 gamma = 0.95       # Future reward discount
 epsilon = 1.0      # Exploration probability
-episodes = 20000
+episodes = 2000
 
 rng = np.random.default_rng(42)
 
