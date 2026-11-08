@@ -1,0 +1,40 @@
+{
+  "name": "Agent Arena \u2014 Catan desktop",
+  "features": {
+    "ghcr.io/devcontainers/features/desktop-lite:1": {
+      "password": "vscode",
+      "webPort": "6080",
+      "vncPort": "5901"
+    }
+  },
+  "remoteUser": "vscode",
+  "forwardPorts": [
+    6080
+  ],
+  "portsAttributes": {
+    "6080": {
+      "label": "Catan desktop (noVNC)",
+      "onAutoForward": "notify",
+      "protocol": "http"
+    }
+  },
+  "containerEnv": {
+    "VNC_RESOLUTION": "1440x1000x24",
+    "SDL_AUDIODRIVER": "dummy",
+    "VNC_PASSWORD": "vscode"
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "${workspaceFolder}/Catan-AI/.venv-container/bin/python"
+      }
+    }
+  },
+  "build": {
+    "dockerfile": "Dockerfile"
+  }
+}

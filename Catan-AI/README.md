@@ -8,6 +8,13 @@ This project currently provides a rule engine and heuristic baseline. It does
 not contain a trained Catan model, reinforcement-learning trainer, or MCTS.
 The TensorFlow script and notebook are optional MNIST tutorials, unrelated to gameplay.
 
+## Play in a VS Code container / browser
+
+Use the included dev container and forward port **6080** to view the Pygame desktop
+through noVNC. No local Python installation is required. See
+[container setup and launch instructions](CONTAINER.md), including how to use an
+existing parent-workspace container.
+
 ## Install and play
 
 Use Python 3.9 or newer (3.11 or 3.12 recommended for a new environment).
