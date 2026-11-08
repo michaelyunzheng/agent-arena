@@ -1,233 +1,146 @@
-#Settlers of Catan
-#Heuristic AI class implementation
+"""A deterministic-under-seed baseline policy, not a learned model."""
+from collections import Counter
+from player import player, RESOURCES
+from engine import COSTS
 
-from board import *
-from player import *
-import numpy as np
 
-#Class definition for an AI player
 class heuristicAIPlayer(player):
-    
-    #Update AI player flag and resources
-    def updateAI(self): 
-        self.isAI = True
-        self.setupResources = [] #List to keep track of setup resources
-        #Initialize resources with just correct number needed for set up
-        self.resources = {'ORE':0, 'BRICK':4, 'WHEAT':2, 'WOOD':4, 'SHEEP':2} #Dictionary that keeps track of resource amounts
-        print("Added new AI Player:", self.name)
+    def __init__(self, name, color):
+        super().__init__(name, color, is_ai=True)
 
+    def vertex_score(self, board, vertex):
+        tiles = [board.hexTileDict[h] for h in board.boardGraph[vertex].adjacentHexList]
+        diversity = {t.resource.type for t in tiles if t.resource.type in RESOURCES}
+        owned = {board.hexTileDict[h].resource.type
+                 for v in self.buildGraph['SETTLEMENTS'] + self.buildGraph['CITIES']
+                 for h in board.boardGraph[v].adjacentHexList}
+        production = sum(6 - abs(7 - t.resource.num) for t in tiles if t.resource.num)
+        return production + 2 * len(diversity) + 2.5 * len(diversity - owned)
 
-    #Function to build an initial settlement - just choose random spot for now
-    def initial_setup(self, board):
-        #Build random settlement
-        possibleVertices = board.get_setup_settlements(self)
+    def choose_vertex(self, board, choices):
+        return max(choices, key=lambda v: (self.vertex_score(board, v), -board.boardGraph[v].vertexIndex))
 
-        #Simple heuristic for choosing initial spot
-        diceRoll_expectation = {2:1, 3:2, 4:3, 5:4, 6:5, 8:5, 9:4, 10:3, 11:2, 12:1, None:0}
-        vertexValues = []
+    def choose_road(self, game, choices):
+        # Prefer expansion towards productive vertices, with a seeded tie-break.
+        scores = []
+        for edge in choices:
+            value = max(self.vertex_score(game.board, v) for v in edge
+                        if v in game.board.boardGraph)
+            value += float(game.rng.random()) * 5
+            scores.append((value, edge))
+        return max(scores, key=lambda item: item[0])[1]
 
-        #Get the adjacent hexes for each hex
-        for v in possibleVertices.keys():
-            vertexNumValue = 0
-            resourcesAtVertex = []
-            #For each adjacent hex get its value and overall resource diversity for that vertex
-            for adjacentHex in board.boardGraph[v].adjacentHexList:
-                resourceType = board.hexTileDict[adjacentHex].resource.type
-                if(resourceType not in resourcesAtVertex):
-                    resourcesAtVertex.append(resourceType)
-                numValue = board.hexTileDict[adjacentHex].resource.num
-                vertexNumValue += diceRoll_expectation[numValue] #Add to total value of this vertex
-
-            #basic heuristic for resource diversity
-            vertexNumValue += len(resourcesAtVertex)*2
-            for r in resourcesAtVertex:
-                if(r != 'DESERT' and r not in self.setupResources):
-                    vertexNumValue += 2.5 #Every new resource gets a bonus
-            
-            vertexValues.append(vertexNumValue)
-
-
-        vertexToBuild_index = vertexValues.index(max(vertexValues))
-        vertexToBuild = list(possibleVertices.keys())[vertexToBuild_index]
-
-        #Add to setup resources
-        for adjacentHex in board.boardGraph[vertexToBuild].adjacentHexList:
-            resourceType = board.hexTileDict[adjacentHex].resource.type
-            if(resourceType not in self.setupResources and resourceType != 'DESERT'):
-                self.setupResources.append(resourceType)
-
-        self.build_settlement(vertexToBuild, board)
-
-
-        #Build random road
-        possibleRoads = board.get_setup_roads(self)
-        randomEdge = np.random.randint(0, len(possibleRoads.keys()))
-        self.build_road(list(possibleRoads.keys())[randomEdge][0], list(possibleRoads.keys())[randomEdge][1], board)
-
-    
-    def move(self, board):
-        print("AI Player {} playing...".format(self.name))
-        #Trade resources if there are excessive amounts of a particular resource
-        self.trade()
-        #Build a settlements, city and few roads
-        possibleVertices = board.get_potential_settlements(self)
-        if(possibleVertices != {} and (self.resources['BRICK'] > 0 and self.resources['WOOD'] > 0 and self.resources['SHEEP'] > 0 and self.resources['WHEAT'] > 0)):
-            randomVertex = np.random.randint(0, len(possibleVertices.keys()))
-            self.build_settlement(list(possibleVertices.keys())[randomVertex], board)
-
-        #Build a City
-        possibleVertices = board.get_potential_cities(self)
-        if(possibleVertices != {} and (self.resources['WHEAT'] >= 2 and self.resources['ORE'] >= 3)):
-            randomVertex = np.random.randint(0, len(possibleVertices.keys()))
-            self.build_city(list(possibleVertices.keys())[randomVertex], board)
-
-        #Build a couple roads
-        for i in range(2):
-            if(self.resources['BRICK'] > 0 and self.resources['WOOD'] > 0):
-                possibleRoads = board.get_potential_roads(self)
-                randomEdge = np.random.randint(0, len(possibleRoads.keys()))
-                self.build_road(list(possibleRoads.keys())[randomEdge][0], list(possibleRoads.keys())[randomEdge][1], board)
-
-        #Draw a Dev Card with 1/3 probability
-        devCardNum = np.random.randint(0, 3)
-        if(devCardNum == 0):
-            self.draw_devCard(board)
-        
-        return
-
-    #Wrapper function to control all trading
-    def trade(self):
-        for r1, r1_amount in self.resources.items():
-            if(r1_amount >= 6): #heuristic to trade if a player has more than 5 of a particular resource
-                for r2, r2_amount in self.resources.items():
-                    if(r2_amount < 1):
-                        self.trade_with_bank(r1, r2)
-                        break
-
-    
-    #Choose which player to rob
     def choose_player_to_rob(self, board):
-        '''Heuristic function to choose the player with maximum points.
-        Choose hex with maximum other players, Avoid blocking own resource
-        args: game board object
-        returns: hex index and player to rob
-        '''
-        #Get list of robber spots
-        robberHexDict = board.get_robber_spots()
-        
-        #Choose a hexTile with maximum adversary settlements
-        maxHexScore = 0 #Keep only the best hex to rob
-        for hex_ind, hexTile in robberHexDict.items():
-            #Extract all 6 vertices of this hexTile
-            vertexList = polygon_corners(board.flat, hexTile.hex)
+        candidates = []
+        for h, tile in board.get_robber_spots().items():
+            score = 0
+            for node in board.boardGraph.values():
+                if h not in node.adjacentHexList:
+                    continue
+                owner = node.state['Player']
+                if owner is self:
+                    score -= 12
+                elif owner is not None:
+                    score += 2 + owner.visibleVictoryPoints
+            victims = board.get_players_to_rob(h, self)
+            victim = max(victims, key=lambda p: p.visibleVictoryPoints, default=None)
+            candidates.append((score + (2 if victim else 0), h, victim))
+        _, h, victim = max(candidates, key=lambda item: (item[0], -item[1]))
+        return h, victim
 
-            hexScore = 0 #Heuristic score for hexTile
-            playerToRob_VP = 0
-            playerToRob = None
-            for vertex in vertexList:
-                playerAtVertex = board.boardGraph[vertex].state['Player']
-                if playerAtVertex == self:
-                    hexScore -= self.victoryPoints
-                elif playerAtVertex != None: #There is an adversary on this vertex
-                    hexScore += playerAtVertex.visibleVictoryPoints
-                    #Find strongest other player at this hex, provided player has resources
-                    if playerAtVertex.visibleVictoryPoints >= playerToRob_VP and sum(playerAtVertex.resources.values()) > 0:
-                        playerToRob_VP = playerAtVertex.visibleVictoryPoints
-                        playerToRob = playerAtVertex
-                else:
-                    pass
+    def discard_choice(self, amount):
+        hand = self.resources.copy()
+        cards = Counter()
+        for _ in range(amount):
+            resource = max(RESOURCES, key=lambda r: hand[r])
+            hand[resource] -= 1
+            cards[resource] += 1
+        return dict(cards)
 
-            if hexScore >= maxHexScore and playerToRob != None:
-                hexToRob_index = hex_ind
-                playerToRob_hex = playerToRob
-                maxHexScore = hexScore
-
-        return hexToRob_index, playerToRob_hex
-
-
-    def heuristic_move_robber(self, board):
-        '''Function to control heuristic AI robber
-        Calls the choose_player_to_rob and move_robber functions
-        args: board object
-        '''
-        #Get the best hex and player to rob
-        hex_i, playerRobbed = self.choose_player_to_rob(board)
-
-        #Move the robber
-        self.move_robber(hex_i, board, playerRobbed)
-
-        return
-
-
-    # def heuristic_play_dev_card(self, board):
-    #     '''Heuristic strategies to choose and play a dev card
-    #     args: board object
-    #     '''
-    #     #Check if player can play a devCard this turn
-    #     if self.devCardPlayedThisTurn != True:
-    #         #Get a list of all the unique dev cards this player can play
-    #         devCardsAvailable = []
-    #         for cardName, cardAmount in self.devCards.items():
-    #             if(cardName != 'VP' and cardAmount >= 1): #Exclude Victory points
-    #                 devCardsAvailable.append((cardName, cardAmount))
-
-    #         if(len(devCardsAvailable) >=1):
-                #If a hexTile is currently blocked, try and play a Knight
-
-                #If expansion needed, try road-builder
-
-                #If resources needed, try monopoly or year of plenty
-
-
-    def resources_needed_for_settlement(self):
-        '''Function to return the resources needed for a settlement
-        args: player object - use self.resources
-        returns: list of resources needed for a settlement
-        '''
-        resourcesNeededDict = {}
-        for resourceName in self.resources.keys():
-            if resourceName != 'ORE' and self.resources[resourceName] == 0:
-                resourcesNeededDict[resourceName] = 1
-
-        return resourcesNeededDict
-
+    def accept_trade(self, offered, requested):
+        # Never concede more cards than received; value scarce resources higher.
+        gain = sum(n * (2 if self.resources[r] < 2 else 1) for r, n in offered.items())
+        loss = sum(n * (2 if self.resources[r] - n < 2 else 1) for r, n in requested.items())
+        return (all(self.resources[r] >= n for r, n in requested.items())
+                and sum(offered.values()) >= sum(requested.values()) and gain >= loss)
 
     def resources_needed_for_city(self):
-        '''Function to return the resources needed for a city
-        args: player object - use self.resources
-        returns: list of resources needed for a city
-        '''
-        resourcesNeededDict = {}
-        if self.resources['ORE'] < 3:
-            resourcesNeededDict['ORE'] = 3 - self.resources['ORE']
+        return {r: n - self.resources[r] for r, n in COSTS['CITY'].items() if self.resources[r] < n}
 
-        if self.resources['WHEAT'] < 2:
-            resourcesNeededDict['ORE'] = 2 - self.resources['WHEAT']
+    def play_card(self, game):
+        if self.devCardPlayedThisTurn:
+            return False
+        for card in ('KNIGHT', 'YEAROFPLENTY', 'MONOPOLY', 'ROADBUILDER'):
+            if not self.devCards[card]:
+                continue
+            resources = ()
+            if card == 'ROADBUILDER' and (not self.roadsLeft or not game.board.get_potential_roads(self)):
+                continue
+            if card == 'YEAROFPLENTY':
+                bank = game.bank.copy()
+                hand = self.resources.copy()
+                selected = []
+                for _ in range(min(2, sum(bank.values()))):
+                    r = min((r for r in RESOURCES if bank[r]), key=lambda r: hand[r])
+                    selected.append(r)
+                    hand[r] += 1
+                    bank[r] -= 1
+                resources = tuple(selected)
+            if card == 'MONOPOLY':
+                # Only use public information: resource production on opponents' tiles.
+                estimates = dict.fromkeys(RESOURCES, 0)
+                for other in game.players:
+                    if other is self:
+                        continue
+                    for v in other.buildGraph['SETTLEMENTS'] + other.buildGraph['CITIES']:
+                        for h in game.board.boardGraph[v].adjacentHexList:
+                            tile = game.board.hexTileDict[h]
+                            if tile.resource.type in estimates:
+                                estimates[tile.resource.type] += 6 - abs(7 - tile.resource.num)
+                resources = (max(estimates, key=estimates.get),)
+            game.play_dev(self, card, resources)
+            return True
+        return False
 
-        return resourcesNeededDict
-
-    def heuristic_discard(self):
-        '''Function for the AI to choose a set of cards to discard upon rolling a 7
-        '''
-        return
-
-    #Function to propose a trade -> give r1 and get r2
-    #Propose a trade as a dictionary with {r1:amt_1, r2: amt_2} specifying the trade
-    #def propose_trade_with_players(self):
-    
-
-    #Function to accept/reject trade - return True if accept
-    #def accept_trade(self, r1_dict, r2_dict):
-        
-
-    #Function to find best action - based on gamestate
-    def get_action(self):
-        return
-
-    #Function to execute the player's action
-    def execute_action(self):
-        return
-
-
-
-
+    def step(self, game):
+        """Make one decision. Engine phases handle mandatory multi-step actions."""
+        if game.phase == 'discard' and self in game.pending_discards:
+            game.discard(self, self.discard_choice(game.pending_discards[self]))
+            return
+        if game.current is not self:
+            return
+        phase = game.phase
+        if phase == 'setup_settlement':
+            game.build(self, 'SETTLE', self.choose_vertex(game.board, game.legal_builds(self, 'SETTLE')))
+        elif phase in ('setup_road', 'free_roads'):
+            game.build(self, 'ROAD', self.choose_road(game, game.legal_builds(self, 'ROAD')))
+        elif phase == 'robber':
+            game.move_robber(self, *self.choose_player_to_rob(game.board))
+        elif phase == 'roll':
+            game.roll(self)
+        elif phase == 'main':
+            if self.play_card(game):
+                return
+            for kind in ('CITY', 'SETTLE', 'ROAD'):
+                choices = game.legal_builds(self, kind)
+                if choices and game.can_pay(self, COSTS[kind]):
+                    location = self.choose_road(game, choices) if kind == 'ROAD' else self.choose_vertex(game.board, choices)
+                    game.build(self, kind, location)
+                    return
+            # Trade only toward a concrete affordable goal, avoiding exchange cycles.
+            for kind in ('CITY', 'SETTLE', 'ROAD', 'DEV'):
+                if kind != 'DEV' and not game.legal_builds(self, kind):
+                    continue
+                if kind == 'DEV' and not sum(game.board.devCardStack.values()):
+                    continue
+                cost = COSTS[kind]
+                missing = [r for r, n in cost.items() if self.resources[r] < n and game.bank[r] > 0]
+                for receive in missing:
+                    for give in RESOURCES:
+                        if give != receive and self.resources[give] - cost.get(give, 0) >= game.trade_ratio(self, give):
+                            game.trade_bank(self, give, receive)
+                            return
+            if game.can_pay(self, COSTS['DEV']) and sum(game.board.devCardStack.values()):
+                game.buy_dev(self)
+            else:
+                game.end_turn(self)

@@ -1,363 +1,181 @@
-#Settlers of Catan
-#Game view class implementation with pygame
-
+"""Pygame presentation and responsive choice dialogs; no game-rule mutations."""
+import math
 import pygame
-from hexTile import *
-from hexLib import *
-
-pygame.init()
-
-#Class to handle catan board display
-class catanGameView():
-    'Class definition for Catan board display'
-    def __init__(self, catanBoardObject, catanGameObject):
-        self.board = catanBoardObject
-        self.game = catanGameObject
-
-        # #Use pygame to display the board
-        self.screen = pygame.display.set_mode(self.board.size)
-        pygame.display.set_caption('Settlers of Catan')
-        self.font_resource = pygame.font.SysFont('cambria', 15)
-        self.font_ports = pygame.font.SysFont('cambria', 10)
-
-        self.font_button = pygame.font.SysFont('cambria', 12)
-        self.font_diceRoll = pygame.font.SysFont('cambria', 25) #dice font
-        self.font_Robber = pygame.font.SysFont('arialblack', 50) #robber font
-
-        return None
+from hexLib import polygon_corners, hex_to_pixel
+from player import RESOURCES
 
 
-    #Function to display the initial board
-    def displayInitialBoard(self):
-        #Dictionary to store RGB Color values
-        colorDict_RGB = {"BRICK":(255,51,51), "ORE":(128, 128, 128), "WHEAT":(255,255,51), "WOOD":(0,153,0), "SHEEP":(51,255,51), "DESERT":(255,255,204)}
-        pygame.draw.rect(self.screen, pygame.Color('royalblue2'), (0,0,self.board.width, self.board.height)) #blue background
-
-        #Render each hexTile
-        for hexTile in self.board.hexTileDict.values():
-            hexTileCorners = polygon_corners(self.board.flat, hexTile.hex)
-
-            hexTileColor_rgb = colorDict_RGB[hexTile.resource.type]
-            pygame.draw.polygon(self.screen, pygame.Color(hexTileColor_rgb[0],hexTileColor_rgb[1], hexTileColor_rgb[2]), hexTileCorners, self.board.width==0)
-            #print(hexTile.index, hexTileCorners)
-
-            hexTile.pixelCenter = hex_to_pixel(self.board.flat, hexTile.hex) #Get pixel center coordinates of hex
-            if(hexTile.resource.type != 'DESERT'): #skip desert text/number
-                resourceText = self.font_resource.render(str(hexTile.resource.type) + " (" +str(hexTile.resource.num) + ")", False, (0,0,0))
-                self.screen.blit(resourceText, (hexTile.pixelCenter.x -25, hexTile.pixelCenter.y)) #add text to hex
+class Cancelled(Exception):
+    pass
 
 
-        #Display the Ports - update images/formatting later
-        for vCoord, vertexInfo in self.board.boardGraph.items():
-            if(vertexInfo.port != False):
-                portText = self.font_ports.render(vertexInfo.port, False, (0,0,0))
-                #print("Displaying {} port with coordinates x ={} and y={}".format(vertexInfo.port, vCoord.x, vCoord.y))
+class catanGameView:
+    def __init__(self, board, game):
+        pygame.init()
+        self.board, self.game = board, game
+        self.screen = pygame.display.set_mode((1240, 850))
+        pygame.display.set_caption('CATAN — You vs three AI opponents')
+        self.font = pygame.font.SysFont('arial', 17)
+        self.small = pygame.font.SysFont('arial', 14)
+        self.title = pygame.font.SysFont('arial', 24, bold=True)
+        self.clock = pygame.time.Clock()
+        self.message = 'Place your first settlement.'
+        self.buttons = {}
 
-                if(vCoord.x < 430 and vCoord.y > 130):
-                    self.screen.blit(portText, (vCoord.x-50, vCoord.y))
-                elif(vCoord.x > 430 and vCoord.y < 130):
-                    self.screen.blit(portText, (vCoord.x, vCoord.y-15))
-                elif(vCoord.x < 430 and vCoord.y < 130):
-                    self.screen.blit(portText, (vCoord.x-50, vCoord.y-15))
-                else:
-                    self.screen.blit(portText, (vCoord.x, vCoord.y)) 
-            
-        pygame.display.update()
+    def text(self, message, pos, color='white', font=None):
+        self.screen.blit((font or self.font).render(str(message), True, color), pos)
 
-        return None
+    def events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                raise SystemExit
+            yield event
+        self.clock.tick(60)
 
-
-    #Function to draw a road on the board
-    def draw_road(self, edgeToDraw, roadColor):
-        pygame.draw.line(self.screen, pygame.Color(roadColor), edgeToDraw[0], edgeToDraw[1], 10)
-
-
-    #Function to draw a potential road on the board - thin
-    def draw_possible_road(self, edgeToDraw, roadColor):
-        roadRect = pygame.draw.line(self.screen, pygame.Color(roadColor), edgeToDraw[0], edgeToDraw[1], 5)
-        return roadRect
-
-
-    #Function to draw a settlement on the board at vertexToDraw
-    def draw_settlement(self, vertexToDraw, color):
-        newSettlement = pygame.Rect(vertexToDraw.x-10, vertexToDraw.y-10, 25, 25)
-        pygame.draw.rect(self.screen, pygame.Color(color), newSettlement)
-
-   
-    #Function to draw a potential settlement on the board - thin
-    def draw_possible_settlement(self, vertexToDraw, color):
-        possibleSettlement = pygame.draw.circle(self.screen, pygame.Color(color), (int(vertexToDraw.x), int(vertexToDraw.y)), 20, 3)
-        return possibleSettlement
-
-    
-    #Function to draw a settlement on the board at vertexToDraw
-    def draw_city(self, vertexToDraw, color):
-        pygame.draw.circle(self.screen, pygame.Color(color), (int(vertexToDraw.x), int(vertexToDraw.y)), 24)
-
-   
-    #Function to draw a potential settlement on the board - thin
-    def draw_possible_city(self, vertexToDraw, color):
-        possibleCity = pygame.draw.circle(self.screen, pygame.Color(color), (int(vertexToDraw.x), int(vertexToDraw.y)), 25, 5)
-        return possibleCity
-
-    
-    #Function to draw the possible spots for a robber
-    def draw_possible_robber(self, vertexToDraw):
-        possibleRobber = pygame.draw.circle(self.screen, pygame.Color('black'), (int(vertexToDraw.x), int(vertexToDraw.y)), 50, 5)
-        return possibleRobber
-
-    #Function to draw possible players to rob
-    def draw_possible_players_to_rob(self, vertexCoord):
-        possiblePlayer = pygame.draw.circle(self.screen, pygame.Color('black'), (int(vertexCoord.x), int(vertexCoord.y)), 35, 5)
-        return possiblePlayer
-        
-
-    #Function to render basic gameplay buttons
-    def displayGameButtons(self):
-        #Basic GamePlay Buttons
-        diceRollText = self.font_button.render("ROLL DICE", False, (0,0,0))
-        buildRoadText = self.font_button.render("ROAD", False, (0,0,0))       
-        buildSettleText = self.font_button.render("SETTLE", False, (0,0,0))
-        buildCityText = self.font_button.render("CITY", False, (0,0,0))
-        endTurnText = self.font_button.render("END TURN", False, (0,0,0))
-        devCardText = self.font_button.render("DEV CARD", False, (0,0,0))
-        playDevCardText = self.font_button.render("PLAY DEV CARD", False, (0,0,0))
-        tradeBankText = self.font_button.render("TRADE W/ BANK", False, (0,0,0))
-        tradePlayersText = self.font_button.render("TRADE W/ PLAYER", False, (0,0,0))
-
-        self.rollDice_button = pygame.Rect(20, 10, 80, 40)
-        self.buildRoad_button = pygame.Rect(20, 70, 80, 40)
-        self.buildSettlement_button = pygame.Rect(20, 120, 80, 40)
-        self.buildCity_button = pygame.Rect(20, 170, 80, 40)
-
-        self.devCard_button = pygame.Rect(20, 300, 100, 40)
-        self.playDevCard_button = pygame.Rect(20, 350, 100, 40)
-
-        self.tradeBank_button = pygame.Rect(20, 470, 120, 40)
-        self.tradePlayers_button = pygame.Rect(20, 520, 120, 40)
-
-        self.endTurn_button = pygame.Rect(20, 700, 80, 40)
-
-        pygame.draw.rect(self.screen, pygame.Color('darkgreen'), self.rollDice_button) 
-        pygame.draw.rect(self.screen, pygame.Color('gray33'), self.buildRoad_button) 
-        pygame.draw.rect(self.screen, pygame.Color('gray33'), self.buildSettlement_button) 
-        pygame.draw.rect(self.screen, pygame.Color('gray33'), self.buildCity_button)
-        pygame.draw.rect(self.screen, pygame.Color('gold'), self.devCard_button)
-        pygame.draw.rect(self.screen, pygame.Color('gold'), self.playDevCard_button)
-        pygame.draw.rect(self.screen, pygame.Color('magenta'), self.tradeBank_button)
-        pygame.draw.rect(self.screen, pygame.Color('magenta'), self.tradePlayers_button)
-
-        pygame.draw.rect(self.screen, pygame.Color('burlywood'), self.endTurn_button) 
-
-        self.screen.blit(diceRollText,(30, 20)) 
-        self.screen.blit(buildRoadText,(30,80)) 
-        self.screen.blit(buildSettleText,(30,130))
-        self.screen.blit(buildCityText, (30,180))
-        self.screen.blit(devCardText, (30,310))
-        self.screen.blit(playDevCardText, (30,360))
-        self.screen.blit(tradeBankText, (30,480))
-        self.screen.blit(tradePlayersText, (30,530))
-
-        self.screen.blit(endTurnText,(30,710))
-
-
-
-    #Function to display robber
-    def displayRobber(self):
-        #Robber text
-        robberText = self.font_Robber.render("R", False, (0,0,0))
-        #Get the coordinates for the robber
-        for hexTile in self.board.hexTileDict.values():
-            if(hexTile.robber):
-                robberCoords = hexTile.pixelCenter
-
-        self.screen.blit(robberText, (int(robberCoords.x) -20, int(robberCoords.y)-35)) 
-
-
-
-    #Function to display the gameState board - use to display intermediate build screens
-    #gameScreenState specifies which type of screen is to be shown
     def displayGameScreen(self):
-        #First display all initial hexes and regular buttons
-        self.displayInitialBoard()
-        self.displayGameButtons()
-        self.displayRobber()
+        game = self.game
+        self.screen.fill('#17354a')
+        colors = {'BRICK': '#b76144', 'ORE': '#929baf', 'WHEAT': '#e8ca68',
+                  'WOOD': '#327956', 'SHEEP': '#98bb65', 'DESERT': '#d5bd94'}
+        for tile in self.board.hexTileDict.values():
+            corners = polygon_corners(self.board.flat, tile.hex)
+            pygame.draw.polygon(self.screen, colors[tile.resource.type], corners)
+            pygame.draw.polygon(self.screen, '#243d43', corners, 2)
+            center = hex_to_pixel(self.board.flat, tile.hex)
+            tile.pixelCenter = center
+            self.text(tile.resource.type, (center.x - 28, center.y - 20), '#142327', self.small)
+            if tile.resource.num:
+                self.text(tile.resource.num, (center.x - 6, center.y + 2), '#142327')
+            if tile.robber:
+                pygame.draw.circle(self.screen, '#20202a', (int(center.x), int(center.y + 32)), 12)
+        for (a, b), port in self.board.port_edges:
+            x, y = (a.x + b.x) / 2, (a.y + b.y) / 2
+            dx, dy = x - self.board.flat.origin.x, y - self.board.flat.origin.y
+            length = math.hypot(dx, dy)
+            label = self.small.render(port, True, '#ffffff')
+            self.screen.blit(label, (x + dx / length * 26 - label.get_width() / 2,
+                                     y + dy / length * 26 - label.get_height() / 2))
+        for p in game.players:
+            for a, b in p.buildGraph['ROADS']:
+                pygame.draw.line(self.screen, 'white', a, b, 10)
+                pygame.draw.line(self.screen, p.color, a, b, 6)
+            for kind in ('SETTLEMENTS', 'CITIES'):
+                for v in p.buildGraph[kind]:
+                    rect = pygame.Rect(v.x - 9, v.y - 9, 18, 18)
+                    if kind == 'CITIES':
+                        rect.inflate_ip(8, 8)
+                    pygame.draw.rect(self.screen, p.color, rect)
+                    pygame.draw.rect(self.screen, 'white', rect, 2)
+        self.text('CATAN', (24, 24), font=self.title)
+        self.text(f'Turn {game.turn} · {game.current.name}', (220, 24), font=self.title)
+        self.text(f'Phase: {game.phase.replace("_", " ")}', (220, 58))
+        if game.last_roll:
+            self.text(f'Dice: {game.last_roll}', (640, 58))
+        labels = [('roll', 'Roll dice'), ('ROAD', 'Build road'), ('SETTLE', 'Settlement'),
+                  ('CITY', 'Upgrade city'), ('buy', 'Buy dev card'), ('play', 'Play dev card'),
+                  ('bank', 'Bank / port trade'), ('trade', 'Offer AI trade'), ('end', 'End turn')]
+        self.buttons = {}
+        for i, (key, label) in enumerate(labels):
+            rect = pygame.Rect(16, 120 + i * 53, 160, 41)
+            pygame.draw.rect(self.screen, '#34566c', rect, border_radius=6)
+            self.text(label, (25, rect.y + 11))
+            self.buttons[key] = rect
+        for i, p in enumerate(game.players):
+            y = 120 + i * 95
+            self.text(p.name, (965, y), font=self.title)
+            points = p.victoryPoints if not p.isAI else p.visibleVictoryPoints
+            self.text(f'{points} points · {sum(p.resources.values())} cards', (965, y + 30))
+            awards = ('Road ' if p.longestRoadFlag else '') + ('Army' if p.largestArmyFlag else '')
+            self.text(awards, (965, y + 52), '#e8ca68')
+        human = next((p for p in game.players if not p.isAI), game.players[0])
+        self.text('Your hand', (965, 530), font=self.title)
+        for i, r in enumerate(RESOURCES):
+            self.text(f'{r}: {human.resources[r]}   bank: {game.bank[r]}', (965, 568 + i * 25))
+        self.text('Your development cards', (965, 710))
+        for i, (card, count) in enumerate(human.devCards.items()):
+            fresh = human.newDevCards.count(card)
+            self.text(f'{card}: {count}' + (f' (+{fresh} new)' if fresh else ''),
+                      (965, 736 + i * 18), font=self.small)
+        self.text(self.message[:125], (20, 760))
+        if game.events:
+            self.text(game.events[-1][:125], (20, 793), '#bdd5df')
+        pygame.display.flip()
 
-        #Loop through and display all existing buildings from players build graphs
-        for player_i in list(self.game.playerQueue.queue): #Build Settlements and roads of each player
-            for existingRoad in player_i.buildGraph['ROADS']:
-                self.draw_road(existingRoad, player_i.color)
-            
-            for settlementCoord in player_i.buildGraph['SETTLEMENTS']:
-                self.draw_settlement(settlementCoord, player_i.color)
+    def choose(self, prompt, options, optional=True):
+        """Choose from (value, label) pairs. Empty mandatory menus fail explicitly."""
+        if not options:
+            if optional:
+                raise Cancelled
+            raise ValueError('No choices available: ' + prompt)
+        page = 0
+        page_size = 10
+        while True:
+            self.displayGameScreen()
+            shown = options[page * page_size:(page + 1) * page_size]
+            navigation = []
+            if page:
+                navigation.append(("__previous__", "Previous page"))
+            if (page + 1) * page_size < len(options):
+                navigation.append(("__next__", "Next page"))
+            panel = pygame.Rect(260, 110, 650, 90 + 39 * (len(shown) + len(navigation) + int(optional)))
+            pygame.draw.rect(self.screen, '#112735', panel, border_radius=10)
+            self.text(prompt, (280, 128), font=self.title)
+            rows = []
+            entries = shown + navigation + ([(None, 'Cancel (Esc)')] if optional else [])
+            for i, (value, label) in enumerate(entries):
+                rect = pygame.Rect(280, 175 + i * 39, 610, 33)
+                pygame.draw.rect(self.screen, '#34566c', rect, border_radius=4)
+                self.text(label, (290, rect.y + 7))
+                rows.append((rect, value))
+            pygame.display.flip()
+            for event in self.events():
+                if optional and event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    raise Cancelled
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    for rect, value in rows:
+                        if rect.collidepoint(event.pos):
+                            if value is None and optional:
+                                raise Cancelled
+                            if value == "__next__":
+                                page += 1
+                                break
+                            if value == "__previous__":
+                                page -= 1
+                                break
+                            return value
 
-            for cityCoord in player_i.buildGraph['CITIES']:
-                self.draw_city(cityCoord, player_i.color)
+    def pick_location(self, kind, choices, optional=True):
+        if not choices:
+            raise Cancelled
+        self.message = 'Click a highlighted location.' + (' Esc to cancel.' if optional else '')
+        while True:
+            self.displayGameScreen()
+            for location in choices:
+                if kind == 'ROAD':
+                    pygame.draw.line(self.screen, '#fff39b', *location, 5)
+                else:
+                    pygame.draw.circle(self.screen, '#fff39b', location, 15, 3)
+            pygame.display.flip()
+            for event in self.events():
+                if optional and event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    raise Cancelled
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    for location in choices:
+                        if kind == 'ROAD':
+                            a, b = location
+                            dx, dy = b.x - a.x, b.y - a.y
+                            t = max(0, min(1, ((event.pos[0]-a.x)*dx + (event.pos[1]-a.y)*dy)/(dx*dx+dy*dy)))
+                            distance = math.hypot(event.pos[0]-a.x-t*dx, event.pos[1]-a.y-t*dy)
+                        else:
+                            distance = math.dist(event.pos, location)
+                        if distance < 16:
+                            return location
 
-        pygame.display.update()
-        return
-        #TO-DO Add screens for trades
-
-
-    #Function to display dice roll
-    def displayDiceRoll(self, diceNums):
-        #Reset blue background and show dice roll
-        pygame.draw.rect(self.screen, pygame.Color('royalblue2'), (100, 20, 50, 50)) #blue background
-        diceNum = self.font_diceRoll.render(str(diceNums), False, (0,0,0))
-        self.screen.blit(diceNum,(110, 20)) 
-        
-        return None
-
-    
-    def buildRoad_display(self, currentPlayer, roadsPossibleDict):
-        '''Function to control build-road action with display
-        args: player, who is building road; roadsPossibleDict - possible roads
-        returns: road edge of road to be built
-        '''
-        #Get all spots the player can build a road and display thin lines
-        #Get Rect representation of roads and draw possible roads
-        for roadEdge in roadsPossibleDict.keys():
-            if roadsPossibleDict[roadEdge]:
-                roadsPossibleDict[roadEdge] = self.draw_possible_road(roadEdge, currentPlayer.color)
-                #print("displaying road")
-
-        pygame.display.update()
-
-        mouseClicked = False #Get player actions until a mouse is clicked
-        while(mouseClicked == False):
-            if(self.game.gameSetup):#during gameSetup phase only exit if road is built
-                for e in pygame.event.get(): 
-                    if e.type == pygame.QUIT:
-                            sys.exit(0)
-                    if(e.type == pygame.MOUSEBUTTONDOWN):
-                        for road, roadRect in roadsPossibleDict.items():
-                            if(roadRect.collidepoint(e.pos)): 
-                                #currentPlayer.build_road(road[0], road[1], self.board)
-                                mouseClicked = True
-                                return road
-
-
-            else: 
-                for e in pygame.event.get(): 
-                    if(e.type == pygame.MOUSEBUTTONDOWN): #Exit this loop on mouseclick
-                        for road, roadRect in roadsPossibleDict.items():
-                            if(roadRect.collidepoint(e.pos)): 
-                                #currentPlayer.build_road(road[0], road[1], self.board)
-                                return road
-
-                        mouseClicked = True
-                        return None
-                        
-
-    def buildSettlement_display(self, currentPlayer, verticesPossibleDict):
-        '''Function to control build-settlement action with display
-        args: player, who is building settlement; verticesPossibleDict - dictionary of possible settlement vertices
-        returns: vertex of settlement to be built
-        '''
-        #Get all spots the player can build a settlement and display thin circles
-        #Add in the Rect representations of possible settlements
-        for v in verticesPossibleDict.keys():
-            if verticesPossibleDict[v]:
-                verticesPossibleDict[v] = self.draw_possible_settlement(v, currentPlayer.color)
-
-        pygame.display.update()
-
-        mouseClicked = False #Get player actions until a mouse is clicked
-
-        while(mouseClicked == False):
-            if(self.game.gameSetup): #during gameSetup phase only exit if settlement is built
-                for e in pygame.event.get(): 
-                    if e.type == pygame.QUIT:
-                            sys.exit(0)
-                    if(e.type == pygame.MOUSEBUTTONDOWN):
-                        for vertex, vertexRect in verticesPossibleDict.items():
-                            if(vertexRect.collidepoint(e.pos)):
-                                #currentPlayer.build_settlement(vertex, self.board)
-                                mouseClicked = True
-                                return vertex
-            else:
-                for e in pygame.event.get(): 
-                    if(e.type == pygame.MOUSEBUTTONDOWN): #Exit this loop on mouseclick
-                        for vertex, vertexRect in verticesPossibleDict.items():
-                            if(vertexRect.collidepoint(e.pos)): 
-                                #currentPlayer.build_settlement(vertex, self.board)
-                                return vertex
-                        
-                        mouseClicked = True
-                        return None
-
-
-    def buildCity_display(self, currentPlayer, verticesPossibleDict):
-        '''Function to control build-city action with display
-        args: player, who is building city; verticesPossibleDict - dictionary of possible city vertices
-        returns: city vertex of city to be built
-        '''
-        #Get all spots the player can build a city and display circles
-        #Get Rect representation of roads and draw possible roads
-        for c in verticesPossibleDict.keys():
-            if verticesPossibleDict[c]:
-                verticesPossibleDict[c] = self.draw_possible_city(c, currentPlayer.color)
-
-        pygame.display.update()
-
-        mouseClicked = False #Get player actions until a mouse is clicked - whether a city is built or not
-
-        while(mouseClicked == False):
-            for e in pygame.event.get(): 
-                if(e.type == pygame.MOUSEBUTTONDOWN): #Exit this loop on mouseclick
-                    for vertex, vertexRect in verticesPossibleDict.items():
-                        if(vertexRect.collidepoint(e.pos)): 
-                            #currentPlayer.build_city(vertex, self.board)
-                            return vertex
-                    
-                    mouseClicked = True
-                    return None
-
-
-    #Function to control the move-robber action with display
-    def moveRobber_display(self, currentPlayer, possibleRobberDict):
-        #Get all spots the player can move robber to and show circles
-        #Add in the Rect representations of possible robber spots
-        for R in possibleRobberDict.keys():
-            possibleRobberDict[R] = self.draw_possible_robber(possibleRobberDict[R].pixelCenter)
-
-        pygame.display.update()
-
-        mouseClicked = False #Get player actions until a mouse is clicked - whether a road is built or not
-
-        while(mouseClicked == False):
-            for e in pygame.event.get(): 
-                if(e.type == pygame.MOUSEBUTTONDOWN): #Exit this loop on mouseclick
-                    for hexIndex, robberCircleRect in possibleRobberDict.items():
-                        if(robberCircleRect.collidepoint(e.pos)): 
-                            #Add code to choose which player to rob depending on hex clicked on
-                            possiblePlayerDict = self.board.get_players_to_rob(hexIndex)
-
-                            playerToRob = self.choosePlayerToRob_display(possiblePlayerDict)
-
-                            #Move robber to that hex and rob
-                            #currentPlayer.move_robber(hexIndex, self.board, playerToRob) #Player moved robber to this hex
-                            mouseClicked = True #Only exit out once a correct robber spot is chosen
-                            return hexIndex, playerToRob
-
-    
-    #Function to control the choice of player to rob with display
-    #Returns the choice of player to rob
-    def choosePlayerToRob_display(self, possiblePlayerDict):
-        #Get all other players the player can move robber to and show circles
-        for player, vertex in possiblePlayerDict.items():
-            possiblePlayerDict[player] = self.draw_possible_players_to_rob(vertex)
-        
-        pygame.display.update()
-
-        #If dictionary is empty return None
-        if(possiblePlayerDict == {}):
-            return None
-
-        mouseClicked = False #Get player actions until a mouse is clicked - whether a road is built or not
-        while(mouseClicked == False):
-            for e in pygame.event.get(): 
-                if(e.type == pygame.MOUSEBUTTONDOWN): #Exit this loop on mouseclick
-                    for playerToRob, playerCircleRect in possiblePlayerDict.items():
-                        if(playerCircleRect.collidepoint(e.pos)): 
-                            return playerToRob
+    def choose_robber(self, p):
+        # Centers are calculated by drawing, independent of the rule engine.
+        self.displayGameScreen()
+        choices = {tile.pixelCenter: h for h, tile in self.board.get_robber_spots().items()}
+        h = choices[self.pick_location('HEX', choices, optional=False)]
+        victims = self.board.get_players_to_rob(h, p)
+        victim = self.choose('Choose whom to rob', [(v, v.name) for v in victims], optional=False) if victims else None
+        return h, victim

@@ -1,22 +1,29 @@
-#Settlers of Catan
-#Testing work in progress with tensor flow for AI component
+"""Optional MNIST tutorial; not a Catan training implementation."""
 
-import tensorflow as tf
-mnist = tf.keras.datasets.mnist
+def main():
+    #Settlers of Catan
+    #Testing work in progress with tensor flow for AI component
 
-(x_train, y_train),(x_test, y_test) = mnist.load_data()
-x_train, x_test = x_train / 255.0, x_test / 255.0
+    import tensorflow as tf
+    mnist = tf.keras.datasets.mnist
 
-model = tf.keras.models.Sequential([
-  tf.keras.layers.Flatten(input_shape=(28, 28)),
-  tf.keras.layers.Dense(128, activation='relu'),
-  tf.keras.layers.Dropout(0.2),
-  tf.keras.layers.Dense(10, activation='softmax')
-])
+    (x_train, y_train),(x_test, y_test) = mnist.load_data()
+    x_train, x_test = x_train / 255.0, x_test / 255.0
 
-model.compile(optimizer='adam',
-              loss='sparse_categorical_crossentropy',
-              metrics=['accuracy'])
+    model = tf.keras.models.Sequential([
+      tf.keras.layers.Flatten(input_shape=(28, 28)),
+      tf.keras.layers.Dense(128, activation='relu'),
+      tf.keras.layers.Dropout(0.2),
+      tf.keras.layers.Dense(10, activation='softmax')
+    ])
 
-model.fit(x_train, y_train, epochs=5)
-model.evaluate(x_test, y_test)
+    model.compile(optimizer='adam',
+                  loss='sparse_categorical_crossentropy',
+                  metrics=['accuracy'])
+
+    model.fit(x_train, y_train, epochs=5)
+    model.evaluate(x_test, y_test)
+
+
+if __name__ == "__main__":
+    main()

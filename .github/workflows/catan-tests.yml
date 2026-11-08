@@ -1,0 +1,19 @@
+name: Catan tests
+on:
+  push:
+    paths: ['Catan-AI/**', '.github/workflows/catan-tests.yml']
+  pull_request:
+    paths: ['Catan-AI/**', '.github/workflows/catan-tests.yml']
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.9', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '${{ matrix.python }}'
+      - run: python -m pip install -r Catan-AI/requirements-dev.txt
+      - run: python -m pytest Catan-AI/tests -q
