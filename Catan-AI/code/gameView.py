@@ -83,8 +83,9 @@ class catanGameView:
         for i, p in enumerate(game.players):
             y = 120 + i * 95
             self.text(p.name, (965, y), font=self.title)
-            points = p.victoryPoints if not p.isAI else p.visibleVictoryPoints
-            self.text(f'{points} points · {sum(p.resources.values())} cards', (965, y + 30))
+            points = p.victoryPoints if not p.isAI or game.winner else p.visibleVictoryPoints
+            count = sum(p.resources.values())
+            self.text(f"{points} points · {count} {'card' if count == 1 else 'cards'}", (965, y + 30))
             awards = ('Road ' if p.longestRoadFlag else '') + ('Army' if p.largestArmyFlag else '')
             self.text(awards, (965, y + 52), '#e8ca68')
         human = next((p for p in game.players if not p.isAI), game.players[0])

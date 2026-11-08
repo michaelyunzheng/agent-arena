@@ -6,6 +6,10 @@ if [[ ! -x "${catan_python}" ]]; then
     printf 'Container environment missing. Run: bash "%s/../.devcontainer/setup.sh"\n' "${catan_root}" >&2
     exit 1
 fi
+if ! PYGAME_HIDE_SUPPORT_PROMPT=1 "${catan_python}" -c 'import numpy, pygame' >/dev/null 2>&1; then
+    printf 'Container dependencies are incomplete. Run: bash "%s/../.devcontainer/setup.sh"\n' "${catan_root}" >&2
+    exit 1
+fi
 export DISPLAY="${DISPLAY:-:1}"
 export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-dummy}"
 # Tests use dummy video; a game launch must target the real virtual desktop.

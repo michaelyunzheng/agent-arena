@@ -108,7 +108,8 @@ class GameEngine:
         else:
             p.buildGraph['CITIES'].append(location)
             self.board.updateBoardGraph_city(location, p)
-        self.events.append(f'{p.name} built {kind.lower()}.')
+        label = {'ROAD': 'a road', 'SETTLE': 'a settlement', 'CITY': 'a city'}[kind]
+        self.events.append(f'{p.name} built {label}.')
         self.update_awards()
         if setup:
             if kind == 'SETTLE':

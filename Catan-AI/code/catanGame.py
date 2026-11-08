@@ -59,7 +59,7 @@ class catanGame:
         amount = self.view.choose('How many to offer?', [(i, str(i)) for i in range(1, p.resources[give] + 1)])
         receive = self.view.choose('Resource to request', [(r, r) for r in RESOURCES if r != give])
         # Do not expose opponents' private resource counts in this dialog.
-        wanted = self.view.choose('How many to request?', [(i, str(i)) for i in range(1, 5)])
+        wanted = self.view.choose('How many to request?', [(i, str(i)) for i in range(1, 20)])
         offer, request = {give: amount}, {receive: wanted}
         accepted = other.accept_trade(offer, request)
         if accepted:

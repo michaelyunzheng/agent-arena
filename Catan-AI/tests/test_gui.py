@@ -61,3 +61,18 @@ def test_large_choice_menu_paginates(app,monkeypatch):
                   [pygame.event.Event(pygame.MOUSEBUTTONDOWN,button=1,pos=(300,493))]])
     monkeypatch.setattr(app.view,'events',lambda:iter(next(batches)))
     assert app.view.choose('Amount',[(i,str(i)) for i in range(1,20)])==19
+
+
+def test_finished_game_reveals_ai_points(app, monkeypatch):
+    game = app.engine
+    ai = game.players[1]
+    ai.devCards['VP'] = 2
+    rendered = []
+    monkeypatch.setattr(app.view, 'text', lambda message, *args, **kwargs: rendered.append(message))
+    app.view.displayGameScreen()
+    assert '2 points · 0 cards' not in rendered
+    rendered.clear()
+    game.winner = ai
+    game.phase = 'finished'
+    app.view.displayGameScreen()
+    assert '2 points · 0 cards' in rendered

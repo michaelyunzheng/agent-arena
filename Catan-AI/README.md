@@ -8,6 +8,23 @@ This project currently provides a rule engine and heuristic baseline. It does
 not contain a trained Catan model, reinforcement-learning trainer, or MCTS.
 The TensorFlow script and notebook are optional MNIST tutorials, unrelated to gameplay.
 
+![Catan game in the browser desktop: Michael wins against three AI opponents.](images/catan-gameplay.png)
+
+*An actual game played through noVNC, ending with Michael on 10 points.*
+
+## Get the code
+
+For a new checkout:
+
+```sh
+git clone --branch codex/catan-gameplay-fixes https://github.com/michaelyunzheng/agent-arena.git
+cd agent-arena
+```
+
+For an existing checkout, switch to `codex/catan-gameplay-fixes` and run
+`git pull --ff-only` from the repository root. The gameplay changes are currently
+on that branch. Choose one installation route below.
+
 ## Play in a VS Code container / browser
 
 Use the included dev container and forward port **6080** to view the Pygame desktop
@@ -17,18 +34,40 @@ existing parent-workspace container.
 
 ## Install and play
 
-Use Python 3.9 or newer (3.11 or 3.12 recommended for a new environment).
-From this folder:
+Use **Python 3.12** for a new installation. Python 3.9, 3.11 and 3.12 are
+covered by CI; Python 3.14 is not supported by this installation setup.
+You need a graphical desktop for local play. A terminal-only container needs
+the noVNC route above.
+
+On macOS or Linux, from the repository root:
 
 ```sh
-python3 -m venv .venv
+cd Catan-AI
+python3.12 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install --only-binary=numpy,pygame -r requirements.txt
 python code/catanGame.py --name Michael
 ```
 
-On Windows, activate with `.venv\Scripts\activate` instead.
-An exact set of tested direct runtime dependencies is in `requirements-lock.txt`.
+On Windows (PowerShell), from the repository root:
+
+```powershell
+cd Catan-AI
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --only-binary=numpy,pygame -r requirements.txt
+.\.venv\Scripts\python.exe code/catanGame.py --name Michael
+```
+
+The game opens a separate window with you and three AI opponents. Click a
+highlighted intersection to place your first settlement, then a highlighted road.
+If `python3.12` or `py -3.12` is unavailable, install Python 3.12 first.
+The binary-only install avoids an unexpected SDL source build; “No matching
+distribution” means your interpreter/platform needs a supported wheel.
+Do not install `pygame` and `pygame-ce` together in this environment: they share
+the same import name. The dedicated environment above uses `pygame`.
+
+An exact set of tested direct runtime dependencies is in `requirements-lock.txt`;
+substitute that file for `requirements.txt` if you need those versions.
 TensorFlow and Matplotlib are not required to play.
 
 Optional arguments:
@@ -56,7 +95,7 @@ Everything is selected inside the window; no terminal prompts are needed.
 - Escape cancels optional choices. Setup, discards, robber movement, and free-road
   placements must be completed. Closing the window works in all dialogs.
 - The right panel shows your resources, the bank, and public opponent information.
-  Your point total includes private victory-point cards; AI point totals do not.
+  Your point total includes private victory-point cards; AI point totals hide those cards until the game finishes.
 
 ## Engine and simulations
 

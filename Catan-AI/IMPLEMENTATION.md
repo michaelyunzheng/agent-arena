@@ -37,8 +37,9 @@ only their second settlement. Launch with `python code/catanGame.py --name Micha
 
 The local GUI tests use real Pygame with a dummy display, not a mocked renderer.
 They do not substitute for a full manual playthrough on the user's physical display.
-The CI matrix is configured for Python 3.9, 3.11, and 3.12; local validation only
-used 3.9. The 100-match completion result is a stability check, not a measure of AI
+The CI matrix is configured for Python 3.9, 3.11, and 3.12; the original local validation used 3.9. Subsequent container checks
+also passed all 48 original tests on Linux ARM64 with Python 3.12.11, verified
+the noVNC page and password authentication, and opened the game on the X11 desktop. The 100-match completion result is a stability check, not a measure of AI
 strength or proof that every Catan edge case is covered.
 
 ## Compatibility and remaining scope
@@ -51,3 +52,19 @@ license attribution are retained.
 The AI remains heuristic. It accepts/rejects human offers but does not initiate
 negotiations. The state encoder is usable, but no RL training, MCTS, action-space
 index, reward API, saved models, network multiplayer, or save/load was added.
+
+## Final usability review
+
+- Added the user's actual winning-game screenshot and separate macOS/Linux,
+  Windows, and container installation instructions.
+- Setup prefers Python 3.12, rejects unsupported interpreters before creating an
+  environment, preserves incompatible existing environments, and requires binary
+  NumPy/Pygame wheels. The launcher detects incomplete dependency installations.
+- Documented parent-container configuration, port forwarding, Python 3.14 / SDL
+  failures, and non-destructive environment recovery; backup environments are ignored.
+- Finished games reveal AI victory-point totals. Trade requests allow 1–19 cards
+  without exposing opponents' resource composition. Improved event/card labels.
+- Added regressions for unsupported Python, existing-environment preservation,
+  failed installation reporting, and end-game score visibility.
+- All 52 tests passed locally after these changes. Full container rebuilding was
+  not repeated for this documentation/setup follow-up.

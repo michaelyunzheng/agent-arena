@@ -66,7 +66,10 @@ settings into the **parent workspace's active** `.devcontainer/devcontainer.json
 
 Merge these entries with existing features, ports, and environment variables;
 do not replace the parent configuration. The feature supports Debian/Ubuntu-based
-containers. Rebuild the parent container, then from `agent-arena` run:
+containers. The parent image must also provide Python 3.12 (recommended), or
+Python 3.9–3.11. Adding desktop-lite does not install a compatible Python.
+Changing directories does not change which container configuration VS Code uses.
+Rebuild the parent container, then from `agent-arena` run:
 
 ```sh
 bash .devcontainer/setup.sh
@@ -105,3 +108,31 @@ the container. If Catan only prints a Pygame banner, check `echo "$DISPLAY"` and
 `xdpyinfo -display :1`; run the launch script for an explicit display diagnostic.
 
 Feature documentation: https://github.com/devcontainers/features/tree/main/src/desktop-lite
+
+## Recover from a failed Python / SDL installation
+
+If installation mentions Python 3.14, `sdl2-config: not found`, or building
+`pygame` from source, the wrong interpreter was selected. The setup script now
+prefers Python 3.12, checks the interpreter before creating an environment, and
+requires prebuilt NumPy/Pygame wheels. The repository container supplies 3.12.
+
+From the repository root, check and rerun:
+
+```sh
+python3.12 --version
+CATAN_PYTHON=python3.12 bash .devcontainer/setup.sh
+```
+
+If setup reports an existing environment with a different or broken interpreter,
+move it aside first (choose an unused backup name):
+
+```sh
+mv Catan-AI/.venv-container Catan-AI/.venv-container-backup
+CATAN_PYTHON=python3.12 bash .devcontainer/setup.sh
+bash Catan-AI/scripts/play-container.sh --name Michael
+```
+
+Setup never deletes your existing environment. If Python 3.12 is missing, rebuild
+using this repository’s container configuration, or install it in your parent
+image before retrying. Merely forwarding port 6080 does not start a desktop;
+the desktop-lite feature must be installed and running.
